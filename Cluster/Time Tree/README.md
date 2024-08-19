@@ -11,7 +11,7 @@
 #SBATCH --time=7-00:00:00
 #SBATCH --output=log.%j.out
 #SBATCH --error=log.%j.err
-#SBATCH --mail-user=tr44022@uga.edu  
+#SBATCH --mail-user=xxx@uga.edu  
 #SBATCH --mail-type=END,FAIL
 
 # Change to the directory where the job was submitted
@@ -32,8 +32,11 @@ pip install phylo-treetime
 output_dir="output"
 mkdir -p $output_dir
 
-treetime --sequence-length 1712 --tree realigned_USdata.fasta.nwk --dates USdata.csv --clock-filter 3.0 --reroot least-squares --outdir $output_dir
+treetime --sequence-length 1712 --tree xxx.fasta.nwk --dates USdata.csv --clock-filter 3.0 --reroot least-squares --outdir $output_dir
 
 # Deactivate the virtual environment
 deactivate
 ```
+
+# Notes:
+We used 1712 because this is the length of H5. 
