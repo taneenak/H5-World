@@ -1,0 +1,505 @@
+---
+title: "Data Presentation"
+author: "Tanin Rajamand"
+date: "2024-08-08"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+This dataset is for the presentation on Sep 3, 2024. This presentation is dedicated to present the data to potential collaborators. 
+
+
+before we begin:
+```{r}
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(stringr)
+library(RColorBrewer)
+library(wesanderson)
+library(lubridate)
+library(readxl)
+library(tidyverse)
+```
+
+
+lets load the dataset:
+```{r}
+print(getwd())
+# Set the working directory (this is already set in your case)
+setwd("C:/Users/tanin/OneDrive/Documents/Lab R/Cattle movement/Data Presentation")
+
+# Load the dataset using just the file name since the working directory is already set correctly
+Final_For_Fasta <- read_excel("Final For Fasta.xlsx")
+
+```
+lets look at the cols and keep the ones I want:
+```{r}
+colnames(Final_For_Fasta)
+Final_For_Fasta <- subset(Final_For_Fasta, select = c(Isolate_Name, Isolate_Id, Location, Continent, Dom_Wild, Country, Year, Collection_Date, Host_category, Sequence))
+```
+let's subset the US:
+```{r}
+sep <- Final_For_Fasta %>%
+  filter(Country == "United States")
+```
+
+
+
+now lets get the states:
+```{r}
+broken_loc <- strsplit(sep$Location, "/")
+state <- sapply(broken_loc , function(x) x[3])
+
+sep<- mutate(sep, State= state)
+```
+
+
+lets see the unique states:
+```{r}
+unique_states <- unique(sep$State)
+unique_states
+```
+I saw an NA, lets see this first.
+then I wil clean the white spaces and all
+
+```{r}
+na_states <- sep %>%
+  filter(is.na(State))
+
+na_states
+```
+
+after studying this, i noticed i can use isolate name to overwrite the state instead of NA.
+
+I also noticed I have Unknown and USA in there as well
+
+```{r}
+sep <- sep %>%
+  mutate(State = if_else(is.na(State),
+                         sapply(strsplit(Isolate_Name, "/"), function(parts) {
+                           if(length(parts) >= 3) parts[3] else NA
+                         }),
+                         State))
+```
+
+
+lets look at the unique ones and the NA:
+```{r}
+
+unique_states2 <- unique(sep$State)
+unique_states2
+
+na_states2 <- sep %>%
+  filter(is.na(State))
+
+na_states2
+```
+
+Let's clean it a bit:
+start with white space
+```{r}
+sep$State <- trimws(sep$State)
+
+
+unique_states3 <- unique(sep$State)
+unique_states3
+```
+Found some problems here:
+Deleware (should be Delaware)
+Conneticut (should be Connecticut)
+MD (abbreviation for Maryland)
+Massachussetts (should be Massachusetts)
+USA
+Unknown
+
+```{r}
+specific_states <- c("Deleware", "Conneticut", "MD", "Massachussetts", "USA", "Unknown")
+specific_rows <- sep %>% filter(State %in% specific_states)
+
+print(specific_rows)
+```
+
+let's rename them:
+```{r}
+sep <- sep %>%
+  mutate(State = case_when(
+    State == "Deleware" ~ "Delaware",
+    State == "Conneticut" ~ "Connecticut",
+    State == "MD" ~ "Maryland",
+    State == "Massachussetts" ~ "Massachusetts",
+    State == "Unknown" ~ "USA",
+    TRUE ~ State
+  ))
+
+unique_states4 <- unique(sep$State)
+unique_states4
+
+```
+
+lets look at the logistics now 
+lets start with the states
+```{r}
+ggplot(sep, aes(x=State, fill=State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Different States") +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+this wasnt enough, ill do this again in tableau at the end
+
+now for dom wild
+```{r}
+ggplot(sep, aes(x=Dom_Wild, fill=Dom_Wild)) +
+  geom_bar() +
+  xlab("Dom_Wild") +
+  ylab("Count") +
+  ggtitle("Count of Different Dom_Wild Categories") +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Host categories:
+```{r}
+ggplot(sep, aes(x = Host_category, fill = Host_category)) +
+  geom_bar() +
+  xlab("Host Category") +
+  ylab("Count") +
+  ggtitle("Count of Different Host Categories") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+look at pets in different
+```{r}
+pet_hosts <- sep %>%
+  filter(Dom_Wild == "Pet")
+
+# Create a bar plot for host categories within 'Pet'
+ggplot(pet_hosts, aes(x = Host_category, fill = Host_category)) +
+  geom_bar() +
+  xlab("Host Category") +
+  ylab("Count") +
+  ggtitle("Count of Host Categories in Pets") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+where are pets?
+```{r}
+unique_states <- pet_hosts %>%
+  pull(State) %>%
+  unique()
+
+print(unique_states)
+
+
+ggplot(pet_hosts, aes(x = State, fill = State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Pet Hosts by State") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+for humans:
+```{r}
+human_samples <- sep %>%
+  filter(Dom_Wild == "Human")
+
+unique_states_human <- human_samples %>%
+  pull(State) %>%
+  unique()
+
+print(unique_states_human)
+
+# Create a bar plot for states of 'Human' samples
+ggplot(human_samples, aes(x = State, fill = State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Human Samples by State") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+first look at wild bird categories and then where they are - this is going to be the pattern for all
+
+```{r}
+wild_bird_hosts <- sep %>%
+  filter(Dom_Wild == "Wild Bird")
+
+unique_host_categories <- wild_bird_hosts %>%
+  pull(Host_category) %>%
+  unique()
+
+print(unique_host_categories)
+
+ggplot(wild_bird_hosts, aes(x = Host_category, fill = Host_category)) +
+  geom_bar() +
+  xlab("Host Category") +
+  ylab("Count") +
+  ggtitle("Count of Host Categories in Wild Birds") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+
+now for wild bird:
+```{r}
+wild_bird_samples <- sep %>%
+  filter(Dom_Wild == "Wild Bird")
+
+unique_states_wild_bird <- wild_bird_samples %>%
+  pull(State) %>%
+  unique()
+
+print(unique_states_wild_bird)
+
+# Create a bar plot for states of 'Wild Bird' samples
+ggplot(wild_bird_samples, aes(x = State, fill = State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Wild Bird Samples by State") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+host categories for other bird
+```{r}
+other_bird_hosts <- sep %>%
+  filter(Dom_Wild == "Other Bird")
+
+unique_host_categories_other_bird <- other_bird_hosts %>%
+  pull(Host_category) %>%
+  unique()
+
+print(unique_host_categories_other_bird)
+
+ggplot(other_bird_hosts, aes(x = Host_category, fill = Host_category)) +
+  geom_bar() +
+  xlab("Host Category") +
+  ylab("Count") +
+  ggtitle("Count of Host Categories in Other Birds") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+location for Other Bird:
+```{r}
+other_bird_samples <- sep %>%
+  filter(Dom_Wild == "Other Bird")
+
+unique_states_other_bird <- other_bird_samples %>%
+  pull(State) %>%
+  unique()
+
+print(unique_states_other_bird)
+
+ggplot(other_bird_samples, aes(x = State, fill = State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Other Bird Samples by State") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+host categories for livestock avian
+```{r}
+livestock_avian_hosts <- sep %>%
+  filter(Dom_Wild == "Livestock Avian")
+
+unique_host_categories_livestock_avian <- livestock_avian_hosts %>%
+  pull(Host_category) %>%
+  unique()
+
+print(unique_host_categories_livestock_avian)
+
+ggplot(livestock_avian_hosts, aes(x = Host_category, fill = Host_category)) +
+  geom_bar() +
+  xlab("Host Category") +
+  ylab("Count") +
+  ggtitle("Count of Host Categories in Livestock Avian") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+
+
+
+location for Livestock Avian
+```{r}
+livestock_avian_samples <- sep %>%
+  filter(Dom_Wild == "Livestock Avian")
+
+unique_states_livestock_avian <- livestock_avian_samples %>%
+  pull(State) %>%
+  unique()
+
+print(unique_states_livestock_avian)
+
+ggplot(livestock_avian_samples, aes(x = State, fill = State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Livestock Avian Samples by State") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+host categories for livestock mammal:
+```{r}
+livestock_mammal_hosts <- sep %>%
+  filter(Dom_Wild == "Livestock Mammal")
+
+unique_host_categories_livestock_mammal <- livestock_mammal_hosts %>%
+  pull(Host_category) %>%
+  unique()
+
+print(unique_host_categories_livestock_mammal)
+
+ggplot(livestock_mammal_hosts, aes(x = Host_category, fill = Host_category)) +
+  geom_bar() +
+  xlab("Host Category") +
+  ylab("Count") +
+  ggtitle("Count of Host Categories in Livestock Mammal") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+location for livestock mammal:
+```{r}
+livestock_mammal_samples <- sep %>%
+  filter(Dom_Wild == "Livestock Mammal")
+
+unique_states_livestock_mammal <- livestock_mammal_samples %>%
+  pull(State) %>%
+  unique()
+
+print(unique_states_livestock_mammal)
+
+ggplot(livestock_mammal_samples, aes(x = State, fill = State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Livestock Mammal Samples by State") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+host categories for wild mammal:
+```{r}
+wild_mammal_hosts <- sep %>%
+  filter(Dom_Wild == "Wild Mammal")
+
+unique_host_categories_wild_mammal <- wild_mammal_hosts %>%
+  pull(Host_category) %>%
+  unique()
+
+print(unique_host_categories_wild_mammal)
+
+ggplot(wild_mammal_hosts, aes(x = Host_category, fill = Host_category)) +
+  geom_bar() +
+  xlab("Host Category") +
+  ylab("Count") +
+  ggtitle("Count of Host Categories in Wild Mammal") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+location for wild mammal:
+```{r}
+wild_mammal_samples <- sep %>%
+  filter(Dom_Wild == "Wild Mammal")
+
+unique_states_wild_mammal <- wild_mammal_samples %>%
+  pull(State) %>%
+  unique()
+
+print(unique_states_wild_mammal)
+
+ggplot(wild_mammal_samples, aes(x = State, fill = State)) +
+  geom_bar() +
+  xlab("State") +
+  ylab("Count") +
+  ggtitle("Count of Wild Mammal Samples by State") +
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+now lets get the counts:
+```{r}
+state_dom_wild_counts <- sep %>%
+  group_by(State, Dom_Wild) %>%
+  summarise(Count = n(), .groups = "drop")
+```
+
+download the counts:
+```{r}
+write.csv(state_dom_wild_counts, "state_dom_wild_counts.csv", row.names = FALSE)
+
+```
+
+
+now lets map them on tablue 
+first we need to download this dataset though
+
+```{r}
+write.csv(sep, "sep.csv", row.names = FALSE)
+```
+
+
+
+i have some hope: 
+lets see if i can make the map here
+
+
+
+
+
+
+
+
